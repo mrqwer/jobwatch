@@ -1,0 +1,65 @@
+# Правится на лету: collector перечитывает файл каждый цикл.
+# Идея: НЕ вырезать по ключевым словам, а начислять баллы. Ниже порога вакансия не пропадает,
+# а лежит в базе как "skipped" — смотри /skipped в боте и возвращай /promote <id>.
+
+poll_seconds: 900
+threshold: 4          # score >= threshold -> в очередь. Опусти до 3, если приходит мало.
+
+# вес за слово целиком; в заголовке считается x2; отрицательные — понижают, а не режут
+keywords:
+  # целевая роль (PLAN.md: LLM / AI Engineer)
+  "ai engineer": 4
+  "llm engineer": 4
+  "ml engineer": 3
+  llm: 3
+  rag: 3
+  langchain: 2
+  embeddings: 2
+  "machine learning": 2
+  openai: 1
+  agents: 1
+  # backend-фундамент (CV Backend)
+  fastapi: 2
+  python: 2
+  backend: 1
+  бэкенд: 1
+  asyncio: 1
+  rabbitmq: 1
+  kafka: 1
+  postgresql: 1
+  docker: 1
+  microservices: 1
+  remote: 1
+  удаленно: 1
+  удалённо: 1
+  # не моё
+  php: -3
+  wordpress: -3
+  "1c": -4
+  "1с": -4
+  ios: -3
+  android: -3
+  frontend: -2
+  qa: -2
+  тестировщик: -2
+  sales: -3
+  продажи: -3
+
+remoteok: true
+
+habr_queries:        # широкий охват: дубли отсекает база, фильтр — скоринг
+  - python llm
+  - rag
+  - fastapi
+  - ai engineer
+  - backend python
+  - machine learning
+
+# нужен app на dev.hh.ru (HH_CLIENT_ID/SECRET в .env), иначе источник выключен
+hh:
+  texts: ["python llm", "ai engineer", "fastapi backend"]
+  areas: [40, 113]   # 40 Казахстан, 113 Россия
+  period_days: 3
+
+# нужны TG_API_ID/TG_API_HASH в .env и разовый логин; пока пусто — источник выключен
+telegram_channels: []

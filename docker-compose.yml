@@ -1,0 +1,43 @@
+x-app: &app
+  build: .
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    AMQP_URL: amqp://jobwatch:${RABBITMQ_PASS}@rabbitmq/
+    DB_PATH: /data/jobwatch.db
+    TG_SESSION: /data/tg
+    CONFIG_PATH: /app/config.yaml
+  volumes:
+    - ./data:/data
+    - ./config.yaml:/app/config.yaml:ro
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: jobwatch   # "guest" is refused from other containers
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    ports:
+      - "127.0.0.1:15672:15672"   # management UI, reach it over an ssh tunnel
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  collector:
+    <<: *app
+    command: python -m jobwatch.collect
+
+  bot:
+    <<: *app
+    command: python -m jobwatch.bot
+
+volumes:
+  rabbitmq:
