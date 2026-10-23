@@ -1,4 +1,6 @@
+import hashlib
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -50,6 +52,21 @@ def init():
     with conn() as c:
         c.execute("PRAGMA journal_mode=WAL")  # collector and bot share the file
         c.executescript(SCHEMA)
+        try:  # migration for databases created before fingerprints
+            c.execute("ALTER TABLE vacancies ADD COLUMN fp TEXT")
+        except sqlite3.OperationalError:
+            pass
+        c.execute("CREATE INDEX IF NOT EXISTS vacancies_fp ON vacancies (fp)")
+
+
+def fingerprint(v: "Vacancy") -> str:
+    """Same post re-published in several channels -> same fingerprint.
+    Hashtags, mentions and links differ between channels, so they are dropped.
+    Telegram 'company' is the channel name, so it is left out there; elsewhere it tells
+    apart two 'Python Developer' vacancies with the same skill list."""
+    raw = v.text if v.source == "telegram" else f"{v.title}|{v.company}|{v.text}"
+    raw = re.sub(r"https?://\S+|[#@]\w+", "", raw.lower())
+    return hashlib.sha1(re.sub(r"\W+", "", raw)[:300].encode()).hexdigest()
 
 
 def _vac(r) -> Vacancy:
@@ -57,12 +74,15 @@ def _vac(r) -> Vacancy:
 
 
 def add(v: Vacancy, score: float, status: str) -> int | None:
-    """Insert unless (source, ext_id) was seen before. Returns row id, None for a duplicate."""
+    """Insert unless (source, ext_id) or the same content was seen before. Returns row id, None for a duplicate."""
+    fp = fingerprint(v)
     with conn() as c:
+        if c.execute("SELECT 1 FROM vacancies WHERE fp=?", (fp,)).fetchone():
+            return None
         cur = c.execute(
-            "INSERT OR IGNORE INTO vacancies (source, ext_id, title, company, url, salary, text, score, status)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
-            (v.source, v.ext_id, v.title, v.company, v.url, v.salary, v.text, score, status),
+            "INSERT OR IGNORE INTO vacancies (source, ext_id, title, company, url, salary, text, score, status, fp)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (v.source, v.ext_id, v.title, v.company, v.url, v.salary, v.text, score, status, fp),
         )
         return cur.lastrowid if cur.rowcount else None
 
@@ -117,3 +137,9 @@ def cursor_get(key: str) -> int | None:
 def cursor_set(key: str, value: int):
     with conn() as c:
         c.execute("INSERT OR REPLACE INTO cursor (key, value) VALUES (?,?)", (key, value))
+
+
+def cursors(prefix: str) -> dict[str, int]:
+    with conn() as c:
+        rows = c.execute("SELECT key, value FROM cursor WHERE key LIKE ? ORDER BY key", (prefix + "%",)).fetchall()
+    return {k[len(prefix):]: v for k, v in rows}

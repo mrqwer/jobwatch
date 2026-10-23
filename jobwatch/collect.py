@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 
 from . import config, db, mq
 from .scoring import score
@@ -18,6 +19,7 @@ async def run_once(cfg: dict, channel):
         except Exception:  # one broken source must not stop the others
             log.exception("%s failed", src.NAME)
             continue
+        db.cursor_set(f"ok:{src.NAME}", int(time.time()))  # shown in /stats
         queued = skipped = 0
         for v in items:
             s = score(v.title, v.text, cfg["keywords"])

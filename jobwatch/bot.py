@@ -5,6 +5,7 @@ import asyncio
 import html
 import logging
 import os
+import time
 
 import aio_pika
 from aiogram import Bot, Dispatcher, F
@@ -16,6 +17,7 @@ from . import config, db, mq
 
 log = logging.getLogger("bot")
 OWNER = int(os.environ.get("OWNER_CHAT_ID", "0"))
+STALE_SECONDS = 3 * 3600  # a source silent for 3h (poll is 15 min) is broken, not quiet
 
 bot = Bot(os.environ.get("TELEGRAM_BOT_TOKEN", "0:placeholder"), default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
@@ -95,9 +97,15 @@ async def help_(m: Message):
 async def stats(m: Message):
     q = await mq.declare(channel)
     c = db.counts()
+    now = time.time()
+    health = "\n".join(
+        f"{'⚠️' if now - ts > STALE_SECONDS else '✓'} {name}: {int((now - ts) // 60)} мин назад"
+        for name, ts in db.cursors("ok:").items()
+    ) or "источники ещё ни разу не отработали"
     await m.answer(
         f"в очереди: {q.declaration_result.message_count} (+{len(pending)} ждёт ответа)\n"
-        f"✅ {c.get('yes', 0)} · ❌ {c.get('no', 0)} · отсеяно {c.get('skipped', 0)}"
+        f"✅ {c.get('yes', 0)} · ❌ {c.get('no', 0)} · отсеяно {c.get('skipped', 0)}\n\n"
+        f"последний успешный сбор:\n{health}"
     )
 
 

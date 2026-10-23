@@ -24,6 +24,7 @@ keywords:
   backend: 1
   бэкенд: 1
   asyncio: 1
+  golang: 2           # фоновый трек; Go-вакансии проходят порог только с golang в заголовке
   rabbitmq: 1
   kafka: 1
   postgresql: 1
@@ -62,4 +63,17 @@ hh:
   period_days: 3
 
 # нужны TG_API_ID/TG_API_HASH в .env и разовый логин; пока пусто — источник выключен
-telegram_channels: []
+telegram_channels:
+  - aitujobs              # Daily Jobs IT KZ
+  - datajobskz            # KZ Jobs Data Science & Engineering
+  - itvacancykz           # ITvacancy KZ & UZ
+  - workitkz              # IT Вакансии Казахстан
+  - pydevjob              # Python jobs (Django, Flask, ...)
+  - job_python            # Python Job | Вакансии | Стажировки
+  - datascienceml_jobs    # Data Science Jobs
+  - data_secrets_career   # Data Secrets | Карьера
+  - jobgolang             # Вакансии Golang (фоновый трек Go)
+  - young_june            # Young & Junior - вакансии IT
+  - devs_kz               # Devs.kz (сообщество, вакансии вперемешку)
+  - Machinelearning_Jobs  # группа; без веб-превью, не проверена
+  - datakzgroup           # группа; без веб-превью, не проверена

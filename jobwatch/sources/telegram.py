@@ -9,6 +9,8 @@ List public channels/groups you are subscribed to (pick from them for config.yam
 import asyncio
 import logging
 import os
+import re
+from collections import Counter
 
 from telethon import TelegramClient
 
@@ -31,6 +33,15 @@ def enabled(cfg: dict) -> bool:
     )
 
 
+def title_of(text: str, boilerplate: frozenset = frozenset()) -> str:
+    """First line that carries words: skips '#jobs', '🔍', '@channel' and a channel's repeated header."""
+    for line in text.splitlines():
+        line = line.strip()
+        if line not in boilerplate and sum(c.isalpha() for c in re.sub(r"[#@]\w+", "", line)) >= 6:
+            return line[:120]
+    return text.strip()[:120]
+
+
 async def fetch(cfg: dict) -> list[Vacancy]:
     out = []
     client = _client()
@@ -47,15 +58,17 @@ async def fetch(cfg: dict) -> list[Vacancy]:
             key = f"tg:{ch}"
             last = db.cursor_get(key)
             msgs = await client.get_messages(ch, limit=30 if last is None else 100, min_id=last or 0)
-            for m in msgs:
-                text = (m.message or "").strip()
-                if len(text) < 40:  # reactions, "thanks", pictures without text
-                    continue
+            texts = [(m, (m.message or "").strip()) for m in msgs]
+            texts = [(m, t) for m, t in texts if len(t) >= 40]  # reactions, "thanks", pictures without text
+            # a first line shared by 3+ posts of the batch is the channel's header, not a title
+            firsts = Counter(t.splitlines()[0].strip() for _, t in texts)
+            boiler = frozenset(line for line, n in firsts.items() if n >= 3)
+            for m, text in texts:
                 out.append(
                     Vacancy(
                         source=NAME,
                         ext_id=f"{ch}:{m.id}",
-                        title=text.splitlines()[0][:120],
+                        title=title_of(text, boiler),
                         company="@" + ch,
                         url=f"https://t.me/{ch}/{m.id}",
                         text=text,
