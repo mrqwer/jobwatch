@@ -27,6 +27,7 @@ Habr и RemoteOK работают сразу. Остальное включае�
   Код написан по документации, вживую не проверялся.
 - **Telegram-каналы** — `TG_API_ID/HASH` с my.telegram.org, каналы в `telegram_channels` в `config.yaml`, один раз:
   `docker compose run --rm -it collector python -m jobwatch.sources.telegram` (код из SMS). Лучше отдельный аккаунт.
+  Свои подписки (публичные каналы и группы) покажет `... jobwatch.sources.telegram channels` — выбери оттуда.
   Вживую не проверялся.
 
 RabbitMQ UI: `ssh -L 16000:localhost:16000 server` → http://localhost:16000 (user `jobwatch`).

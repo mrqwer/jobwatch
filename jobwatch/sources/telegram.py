@@ -2,6 +2,8 @@
 
 One-time login (creates the session file in the data volume):
     docker compose run --rm -it collector python -m jobwatch.sources.telegram
+List public channels/groups you are subscribed to (pick from them for config.yaml):
+    docker compose run --rm -it collector python -m jobwatch.sources.telegram channels
 """
 
 import asyncio
@@ -37,6 +39,9 @@ async def fetch(cfg: dict) -> list[Vacancy]:
         if not await client.is_authorized():
             log.warning("telegram session is not authorized, run the login command (see module docstring)")
             return out
+        if (await client.get_me()).bot:
+            log.warning("telegram session is a BOT, it cannot read channels; delete data/tg.session and log in with your phone number")
+            return out
         for ch in cfg["telegram_channels"]:
             ch = ch.lstrip("@")
             key = f"tg:{ch}"
@@ -64,6 +69,22 @@ async def fetch(cfg: dict) -> list[Vacancy]:
     return out
 
 
+async def _cli(list_channels: bool):
+    async with _client() as c:  # first run prompts for phone / code interactively
+        me = await c.get_me()
+        print("authorized as", me.username)
+        if me.bot:
+            raise SystemExit("this is a BOT account and cannot read channels. Delete data/tg.session, "
+                             "run again and enter your PHONE NUMBER (+country code), not the bot token.")
+        if list_channels:
+            async for d in c.iter_dialogs():
+                e = d.entity
+                if getattr(e, "username", None) and (getattr(e, "broadcast", False) or getattr(e, "megagroup", False)):
+                    kind = "channel" if e.broadcast else "group"
+                    print(f"@{e.username}\t{kind}\t{d.name}")
+
+
 if __name__ == "__main__":
-    with _client() as c:  # prompts for phone / code interactively
-        print("authorized as", c.loop.run_until_complete(c.get_me()).username)
+    import sys
+
+    asyncio.run(_cli(sys.argv[1:] == ["channels"]))
