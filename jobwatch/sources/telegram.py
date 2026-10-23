@@ -47,7 +47,7 @@ async def fetch(cfg: dict) -> list[Vacancy]:
     client = _client()
     await client.connect()
     try:
-        if not await client.is_authorized():
+        if not await client.is_user_authorized():
             log.warning("telegram session is not authorized, run the login command (see module docstring)")
             return out
         if (await client.get_me()).bot:
