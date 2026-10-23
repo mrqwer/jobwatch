@@ -29,7 +29,7 @@ Habr и RemoteOK работают сразу. Остальное включае�
   `docker compose run --rm -it collector python -m jobwatch.sources.telegram` (код из SMS). Лучше отдельный аккаунт.
   Вживую не проверялся.
 
-RabbitMQ UI: `ssh -L 15672:localhost:15672 server` → http://localhost:15672 (user `jobwatch`).
+RabbitMQ UI: `ssh -L 16000:localhost:16000 server` → http://localhost:16000 (user `jobwatch`).
 
 ## Команды бота
 
@@ -49,7 +49,7 @@ uv sync && uv run pytest
 
 ## Не сделано (осознанно)
 
-- Описание вакансии на Habr не тянется (в списке его нет) — скоринг идёт по заголовку, навыкам, локации.
+- Описание Habr тянется только для новых вакансий с баллом ≥ threshold/2 по заголовку и навыкам; остальные оцениваются без описания.
 - Оценка через LLM вместо слов — точка расширения в `collect.run_once` (там, где вызывается `score`).
 - MCP/доступ с локального Claude к `data/jobwatch.db` — отдельным шагом.
 - Telegram-курсор двигается до записи в базу: падение ровно между ними теряет пачку постов.

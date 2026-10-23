@@ -67,6 +67,11 @@ def add(v: Vacancy, score: float, status: str) -> int | None:
         return cur.lastrowid if cur.rowcount else None
 
 
+def seen(source: str, ext_id: str) -> bool:
+    with conn() as c:
+        return c.execute("SELECT 1 FROM vacancies WHERE source=? AND ext_id=?", (source, ext_id)).fetchone() is not None
+
+
 def get(vid: int) -> Vacancy | None:
     with conn() as c:
         r = c.execute("SELECT * FROM vacancies WHERE id=?", (vid,)).fetchone()
