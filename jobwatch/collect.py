@@ -4,9 +4,9 @@ import time
 
 from . import config, db, mq
 from .scoring import score
-from .sources import habr, hh, remoteok, telegram
+from .sources import boards, habr, hh, remoteok, telegram
 
-SOURCES = [habr, remoteok, hh, telegram]
+SOURCES = [habr, remoteok, hh, telegram, *boards.BOARDS]
 log = logging.getLogger("collect")
 
 
@@ -14,6 +14,9 @@ async def run_once(cfg: dict, channel):
     for src in SOURCES:
         if not src.enabled(cfg):
             continue
+        last_ok = db.cursor_get(f"ok:{src.NAME}")
+        if last_ok and time.time() - last_ok < getattr(src, "EVERY", 0):
+            continue  # heavy / polite-use source, fetched recently
         try:
             items = await src.fetch(cfg)
         except Exception:  # one broken source must not stop the others

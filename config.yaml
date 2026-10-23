@@ -3,7 +3,7 @@
 # а лежит в базе как "skipped" — смотри /skipped в боте и возвращай /promote <id>.
 
 poll_seconds: 900
-threshold: 4          # score >= threshold -> в очередь. Опусти до 3, если приходит мало.
+threshold: 6          # score >= threshold -> в очередь. 4 пропускало шум из длинных западных описаний; мало приходит — опусти до 5.
 
 # вес за слово целиком; в заголовке считается x2; отрицательные — понижают, а не режут
 keywords:
@@ -15,7 +15,7 @@ keywords:
   rag: 3
   langchain: 2
   embeddings: 2
-  "machine learning": 2
+  "machine learning": 3
   openai: 1
   agents: 1
   # backend-фундамент (CV Backend)
@@ -33,6 +33,21 @@ keywords:
   remote: 1
   удаленно: 1
   удалённо: 1
+  worldwide: 1
+  anywhere: 1
+  # готов к переезду при хороших условиях
+  relocation: 2
+  "relocation paid": 2
+  "visa sponsorship": 2
+  релокация: 2
+  релокацией: 2
+  # западные remote-вакансии, на которые из KZ не податься
+  "us only": -3
+  "usa only": -3
+  "us citizens": -3
+  "us citizen": -3
+  "security clearance": -3
+  "must be located in the us": -3
   # не моё
   php: -3
   wordpress: -3
@@ -47,6 +62,24 @@ keywords:
   продажи: -3
 
 remoteok: true
+
+# открытые API / RSS (sources/boards.py); убери строку, чтобы выключить площадку
+boards:
+  - remotive        # remote, весь мир
+  - himalayas       # remote, весь мир
+  - jobicy          # remote, весь мир
+  - workingnomads   # remote
+  - wwr             # We Work Remotely
+  - jobspresso      # remote
+  - nodesk          # remote
+  - hn              # Hacker News "Who is hiring?" — сильные компании, remote и релокация
+  - arbeitnow       # Европа, в основном Германия (релокация)
+  - landingjobs     # Португалия / Европа, флаг relocation paid
+  - getmatch        # RU IT-рынок, remote и релокация
+  - djinni          # Python-вакансии, в основном remote (украинский рынок)
+
+# поисковые запросы для площадок с поиском (himalayas, jobicy)
+board_queries: [python, llm, machine learning, ai engineer, fastapi]
 
 habr_queries:        # широкий охват: дубли отсекает база, фильтр — скоринг
   - python llm
@@ -75,5 +108,8 @@ telegram_channels:
   - jobgolang             # Вакансии Golang (фоновый трек Go)
   - young_june            # Young & Junior - вакансии IT
   - devs_kz               # Devs.kz (сообщество, вакансии вперемешку)
+  - hrlunapark            # западные senior/staff вакансии, релокация в Амстердам/Лондон/NY
+  - remote_job_golang     # подборки Go remote за сутки
+  - Young_and_Yandex      # ML-стажировки Яндекса
   - Machinelearning_Jobs  # группа; без веб-превью, не проверена
   - datakzgroup           # группа; без веб-превью, не проверена
