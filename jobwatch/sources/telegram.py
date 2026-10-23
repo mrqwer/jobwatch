@@ -13,6 +13,7 @@ import re
 from collections import Counter
 
 from telethon import TelegramClient
+from telethon.errors import RPCError
 
 from .. import db
 from ..db import Vacancy
@@ -57,7 +58,11 @@ async def fetch(cfg: dict) -> list[Vacancy]:
             ch = ch.lstrip("@")
             key = f"tg:{ch}"
             last = db.cursor_get(key)
-            msgs = await client.get_messages(ch, limit=30 if last is None else 100, min_id=last or 0)
+            try:
+                msgs = await client.get_messages(ch, limit=30 if last is None else 100, min_id=last or 0)
+            except (ValueError, RPCError) as e:  # renamed / deleted / private: skip it, keep the others
+                log.warning("channel @%s skipped: %s", ch, e)
+                continue
             texts = [(m, (m.message or "").strip()) for m in msgs]
             texts = [(m, t) for m, t in texts if len(t) >= 40]  # reactions, "thanks", pictures without text
             # a first line shared by 3+ posts of the batch is the channel's header, not a title

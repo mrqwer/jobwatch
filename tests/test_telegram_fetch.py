@@ -19,13 +19,21 @@ def test_fetch_uses_real_telethon_api(tmp_path, monkeypatch):
     client.disconnect.side_effect = lambda: asyncio.sleep(0)  # real one: plain def returning a coroutine
     client.is_user_authorized.return_value = True
     client.get_me.return_value = SimpleNamespace(bot=False)
-    client.get_messages.return_value = [
-        SimpleNamespace(id=5, message="#jobs\nSenior Python Developer\nУдалённо, FastAPI, PostgreSQL, RabbitMQ"),
-        SimpleNamespace(id=6, message="👍"),
-    ]
-    monkeypatch.setattr(telegram, "_client", lambda: client)
+    async def get_messages(ch, **kw):
+        if ch == "gone":
+            raise ValueError('No user has "gone" as username')  # what Telethon raises for a renamed channel
+        return [
+            SimpleNamespace(id=5, message="#jobs\nSenior Python Developer\nУдалённо, FastAPI, PostgreSQL, RabbitMQ"),
+            SimpleNamespace(id=6, message="👍"),
+        ]
 
-    out = asyncio.run(telegram.fetch({"telegram_channels": ["@pydevjob"]}))
+    client.get_messages.side_effect = get_messages
+    monkeypatch.setattr(telegram, "_client", lambda: client)
+    real_sleep = asyncio.sleep
+    monkeypatch.setattr(telegram.asyncio, "sleep", lambda s: real_sleep(0))
+
+    # a broken channel BEFORE a good one must not cost the good one its posts
+    out = asyncio.run(telegram.fetch({"telegram_channels": ["gone", "@pydevjob"]}))
 
     assert [(v.ext_id, v.title, v.url) for v in out] == [
         ("pydevjob:5", "Senior Python Developer", "https://t.me/pydevjob/5")
