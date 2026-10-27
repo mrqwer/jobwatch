@@ -32,6 +32,16 @@ Habr и RemoteOK работают сразу. Остальное включае�
 
 RabbitMQ UI: `ssh -L 16000:localhost:16000 server` → http://localhost:16000 (user `jobwatch`).
 
+## База локально (DBeaver)
+
+`./pull-db.sh` — снимок серверной базы в `data/jobwatch_snapshot.db` (SQLite backup API: живая база в WAL,
+простой scp может потерять последние записи). Открыть в DBeaver как SQLite, только чтение; решения — через бота.
+
+```sql
+SELECT title, company, source, url, score, decided_at FROM vacancies
+WHERE status = 'yes' ORDER BY decided_at DESC;
+```
+
 ## Команды бота
 
 `/stats` · `/liked` — последние ✅ · `/skipped` — отсеянные, лучшие сверху · `/promote <id>` — вернуть отсеянную в очередь
