@@ -19,8 +19,25 @@ def enabled(cfg: dict) -> bool:
     return bool(os.environ.get("HH_CLIENT_ID") and os.environ.get("HH_CLIENT_SECRET") and cfg.get("hh", {}).get("texts"))
 
 
-async def _auth(http: httpx.AsyncClient) -> str:
+def _token_file() -> str:
+    return os.path.join(os.path.dirname(db.DB_PATH) or ".", "hh_token")
+
+
+def _forget():
+    """hh rejected the token: drop it so the next cycle asks for a new one."""
     global _token
+    _token = None
+    if os.path.exists(_token_file()):
+        os.remove(_token_file())
+
+
+async def _auth(http: httpx.AsyncClient) -> str:
+    # The application token does not expire, and hh answers 403 to a new /token request made within
+    # a few minutes of the previous one. Asking on every process start broke restarts: keep it on disk.
+    global _token
+    if not _token and os.path.exists(_token_file()):
+        with open(_token_file()) as f:
+            _token = f.read().strip() or None
     if not _token:
         r = await http.post(
             f"{API}/token",
@@ -32,6 +49,8 @@ async def _auth(http: httpx.AsyncClient) -> str:
         )
         r.raise_for_status()
         _token = r.json()["access_token"]
+        with open(_token_file(), "w") as f:
+            f.write(_token)
     return _token
 
 
@@ -42,7 +61,6 @@ def _salary(s: dict | None) -> str:
 
 
 async def fetch(cfg: dict) -> list[Vacancy]:
-    global _token
     c = cfg["hh"]
     ua = os.environ.get("HH_USER_AGENT", "jobwatch/0.1 (set-your-email@example.com)")
     found: dict[str, Vacancy] = {}  # one vacancy often matches several search texts
@@ -58,7 +76,7 @@ async def fetch(cfg: dict) -> list[Vacancy]:
             }
             r = await http.get(f"{API}/vacancies", params=params, headers=headers)
             if r.status_code in (401, 403):
-                _token = None  # token expired -> re-auth on the next cycle
+                _forget()  # token revoked -> re-auth on the next cycle
             r.raise_for_status()
             for j in r.json()["items"]:
                 sn = j.get("snippet") or {}
