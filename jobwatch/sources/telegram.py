@@ -35,8 +35,10 @@ def enabled(cfg: dict) -> bool:
 
 
 # "Должность/position: Data/AI Engineer", "Вакансия: ML-инженер" — the post names its own title
-LABELLED = re.compile(r"^\W*(должность|позиция|вакансия|position|vacancy|role|job title)\b[^:\n]{0,30}:\s*(.+)$",
-                      re.I | re.M)
+LABELLED = re.compile(
+    r"^\W*(?:открыта\s+|новая\s+|open\s+)?(должность|позиция|вакансия|position|vacancy|role|job title)\b[^:\n]{0,30}:\s*(.+)$",
+    re.I | re.M,
+)
 
 
 def title_of(text: str, boilerplate: frozenset = frozenset()) -> str:

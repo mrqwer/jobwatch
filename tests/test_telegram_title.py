@@ -16,6 +16,7 @@ def test_labelled_title_wins_over_first_line():
     post = "#jobs\n#Астана\n📍\nФормат/working arrangement: удалённо\n✔️\nДолжность/position: Data/AI Engineer\n🏢"
     assert title_of(post) == "Data/AI Engineer"
     assert title_of("🔥 Горячее\nВакансия: ML-инженер (LLM / Python)\nЗП 500к") == "ML-инженер (LLM / Python)"
+    assert title_of("Daily Jobs IT. современные вакансии\n\n🚀 Открыта вакансия:  Data Engineer") == "Data Engineer"
 
 
 def test_falls_back_to_text_when_nothing_qualifies():
