@@ -6,10 +6,12 @@ x-app: &app
     AMQP_URL: amqp://jobwatch:${RABBITMQ_PASS}@rabbitmq/
     DB_PATH: /data/jobwatch.db
     TG_SESSION: /data/tg
-    CONFIG_PATH: /app/config.yaml
+    CONFIG_PATH: /conf/config.yaml
   volumes:
     - ./data:/data
-    - ./config.yaml:/app/config.yaml:ro
+    # the directory, not the file: git pull / editors replace config.yaml with a new file,
+    # and a single-file mount keeps showing the old one until the container is recreated
+    - .:/conf:ro
   depends_on:
     rabbitmq:
       condition: service_healthy
