@@ -12,5 +12,11 @@ def test_skips_channel_header():
     assert title_of(f"{header}\n🤖\n Middle ML Engineer", frozenset({header})) == "Middle ML Engineer"
 
 
+def test_labelled_title_wins_over_first_line():
+    post = "#jobs\n#Астана\n📍\nФормат/working arrangement: удалённо\n✔️\nДолжность/position: Data/AI Engineer\n🏢"
+    assert title_of(post) == "Data/AI Engineer"
+    assert title_of("🔥 Горячее\nВакансия: ML-инженер (LLM / Python)\nЗП 500к") == "ML-инженер (LLM / Python)"
+
+
 def test_falls_back_to_text_when_nothing_qualifies():
     assert title_of("#a #b\n🔥🔥") == "#a #b\n🔥🔥"

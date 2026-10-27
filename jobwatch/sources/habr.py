@@ -1,7 +1,5 @@
 import asyncio
-import json
 import logging
-import re
 
 import httpx
 
@@ -9,30 +7,16 @@ from .. import db
 from ..config import UA
 from ..db import Vacancy
 from ..scoring import score, strip_html
+from .boards import job_posting
 
 NAME = "habr"
 BASE = "https://career.habr.com"
 LIST_URL = BASE + "/api/frontend/vacancies"
-LD_JSON = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
 log = logging.getLogger(NAME)
 
 
 def enabled(cfg: dict) -> bool:
     return bool(cfg.get("habr_queries"))
-
-
-async def _description(http: httpx.AsyncClient, v: Vacancy) -> str:
-    """The list endpoint has no description; the vacancy page carries it in JSON-LD (JobPosting)."""
-    try:
-        r = await http.get(v.url)
-        r.raise_for_status()
-        for m in LD_JSON.finditer(r.text):
-            d = json.loads(m.group(1))
-            if d.get("@type") == "JobPosting":
-                return strip_html(d.get("description", ""))
-    except (httpx.HTTPError, ValueError):
-        log.exception("description of %s failed", v.url)
-    return ""
 
 
 async def fetch(cfg: dict) -> list[Vacancy]:
@@ -71,6 +55,7 @@ async def fetch(cfg: dict) -> list[Vacancy]:
         for v in found.values():
             if db.seen(NAME, v.ext_id) or score(v.title, v.text, cfg["keywords"]) < half:
                 continue
-            v.text += ". " + await _description(http, v)
+            # the list endpoint has no description; the vacancy page has it
+            v.text += ". " + strip_html((await job_posting(http, v.url)).get("description", ""))
             await asyncio.sleep(1)
     return list(found.values())

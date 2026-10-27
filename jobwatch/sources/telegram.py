@@ -34,8 +34,17 @@ def enabled(cfg: dict) -> bool:
     )
 
 
+# "Должность/position: Data/AI Engineer", "Вакансия: ML-инженер" — the post names its own title
+LABELLED = re.compile(r"^\W*(должность|позиция|вакансия|position|vacancy|role|job title)\b[^:\n]{0,30}:\s*(.+)$",
+                      re.I | re.M)
+
+
 def title_of(text: str, boilerplate: frozenset = frozenset()) -> str:
-    """First line that carries words: skips '#jobs', '🔍', '@channel' and a channel's repeated header."""
+    """A labelled title line if the post has one; else the first line that carries words,
+    skipping '#jobs', '🔍', '@channel' and the channel's repeated header."""
+    m = LABELLED.search(text)
+    if m and sum(c.isalpha() for c in m.group(2)) >= 3:
+        return m.group(2).strip()[:120]
     for line in text.splitlines():
         line = line.strip()
         if line not in boilerplate and sum(c.isalpha() for c in re.sub(r"[#@]\w+", "", line)) >= 6:
@@ -65,9 +74,10 @@ async def fetch(cfg: dict) -> list[Vacancy]:
                 continue
             texts = [(m, (m.message or "").strip()) for m in msgs]
             texts = [(m, t) for m, t in texts if len(t) >= 40]  # reactions, "thanks", pictures without text
-            # a first line shared by 3+ posts of the batch is the channel's header, not a title
+            # a channel's header, not a title: first line shared by 3+ posts of this batch,
+            # or a title already used 2+ times for this channel (small batches can't show it)
             firsts = Counter(t.splitlines()[0].strip() for _, t in texts)
-            boiler = frozenset(line for line, n in firsts.items() if n >= 3)
+            boiler = frozenset(line for line, n in firsts.items() if n >= 3) | db.repeated_titles(NAME, "@" + ch)
             for m, text in texts:
                 out.append(
                     Vacancy(

@@ -5,7 +5,10 @@ successful fetches, so heavy feeds and boards that ask for polite use are not hi
 Every board's terms ask for a link back to the vacancy: the url we send is that link.
 """
 
+import asyncio
 import html
+import json
+import logging
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -13,11 +16,28 @@ from typing import Awaitable, Callable
 
 import httpx
 
+from .. import db
 from ..config import UA
 from ..db import Vacancy
 from ..scoring import strip_html
 
 HOUR = 3600
+LD_JSON = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.S)
+log = logging.getLogger("boards")
+
+
+async def job_posting(http: httpx.AsyncClient, url: str) -> dict:
+    """schema.org JobPosting embedded in a vacancy page (Habr, Djinni): company, full description. {} if absent."""
+    try:
+        r = await http.get(url)
+        r.raise_for_status()
+        for m in LD_JSON.finditer(r.text):
+            d = json.loads(m.group(1))
+            if isinstance(d, dict) and d.get("@type") == "JobPosting":
+                return d
+    except (httpx.HTTPError, ValueError):
+        log.warning("job page %s failed", url)
+    return {}
 
 
 @dataclass
@@ -169,6 +189,22 @@ def rss(name: str, url: str, every: int = HOUR) -> Board:
     return Board(name, parse, every)
 
 
+async def djinni(http, cfg):
+    r = await http.get("https://djinni.co/jobs/rss/?primary_keyword=Python")
+    r.raise_for_status()
+    out = []
+    for i in rss_items(r.text):
+        v = Vacancy("djinni", i.get("guid") or i["link"], html.unescape(i.get("title", "")), i["link"],
+                    text=strip_html(i.get("description", "")))
+        # the feed has no company, so 7 different "Senior Python Engineer" looked like one; the page has it
+        if not db.seen("djinni", v.ext_id):
+            org = (await job_posting(http, v.url)).get("hiringOrganization")
+            v.company = org.get("name", "") if isinstance(org, dict) else ""
+            await asyncio.sleep(1)
+        out.append(v)
+    return out
+
+
 BOARDS = [
     Board("remotive", remotive, 6 * HOUR),
     Board("arbeitnow", arbeitnow, 6 * HOUR),  # 4 MB page
@@ -180,6 +216,6 @@ BOARDS = [
     Board("hn", hn, 6 * HOUR),
     rss("wwr", "https://weworkremotely.com/remote-jobs.rss", 2 * HOUR),  # ~1 MB
     rss("jobspresso", "https://jobspresso.co/?feed=job_feed"),
-    rss("djinni", "https://djinni.co/jobs/rss/?primary_keyword=Python"),
+    Board("djinni", djinni),
     rss("nodesk", "https://nodesk.co/remote-jobs/index.xml"),
 ]

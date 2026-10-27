@@ -79,6 +79,15 @@ def add(v: Vacancy, score: float, status: str) -> int | None:
     with conn() as c:
         if c.execute("SELECT 1 FROM vacancies WHERE fp=?", (fp,)).fetchone():
             return None
+        # one job posted per city/country (himalayas, arbeitnow): same source + company + title within 30 days.
+        # Not for Telegram (company there is the channel: different employers post the same title) and not
+        # without a company. ponytail: SQLite lower() is ASCII-only; reposts keep the same casing anyway.
+        if v.company and v.source != "telegram" and c.execute(
+            "SELECT 1 FROM vacancies WHERE source=? AND lower(company)=lower(?) AND lower(title)=lower(?)"
+            " AND found_at > datetime('now', '-30 days')",
+            (v.source, v.company.strip(), v.title.strip()),
+        ).fetchone():
+            return None
         cur = c.execute(
             "INSERT OR IGNORE INTO vacancies (source, ext_id, title, company, url, salary, text, score, status, fp)"
             " VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -90,6 +99,15 @@ def add(v: Vacancy, score: float, status: str) -> int | None:
 def seen(source: str, ext_id: str) -> bool:
     with conn() as c:
         return c.execute("SELECT 1 FROM vacancies WHERE source=? AND ext_id=?", (source, ext_id)).fetchone() is not None
+
+
+def repeated_titles(source: str, company: str, min_count: int = 2) -> frozenset[str]:
+    with conn() as c:
+        rows = c.execute(
+            "SELECT title FROM vacancies WHERE source=? AND company=? GROUP BY title HAVING COUNT(*) >= ?",
+            (source, company, min_count),
+        ).fetchall()
+    return frozenset(r[0] for r in rows)
 
 
 def get(vid: int) -> Vacancy | None:
