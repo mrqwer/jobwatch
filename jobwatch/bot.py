@@ -128,7 +128,7 @@ async def promote(m: Message, command):
         return
     v = db.get(vid)
     if v and db.set_status(vid, "queued", only_from="skipped"):
-        await mq.publish(channel, vid, 10)  # you picked it by hand -> top priority
+        await mq.publish(channel, vid, mq.MAX_PRIORITY)  # you picked it by hand -> top priority
         await m.answer("вернул в очередь")
     else:
         await m.answer("нет такой отсеянной")
