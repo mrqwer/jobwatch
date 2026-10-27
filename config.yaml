@@ -3,7 +3,7 @@
 # а лежит в базе как "skipped" — смотри /skipped в боте и возвращай /promote <id>.
 
 poll_seconds: 900
-threshold: 6          # score >= threshold -> в очередь. 4 пропускало шум из длинных западных описаний; мало приходит — опусти до 5.
+threshold: 6 # score >= threshold -> в очередь. 4 пропускало шум из длинных западных описаний; мало приходит — опусти до 5.
 
 # вес за слово целиком; в заголовке считается x2; отрицательные — понижают, а не режут
 keywords:
@@ -18,13 +18,26 @@ keywords:
   "machine learning": 3
   openai: 1
   agents: 1
+  # те же роли по-русски (hh, Telegram): "AI-инженер" не совпадает с "ai engineer"
+  "ai-инженер": 4
+  "llm-инженер": 4
+  "ml-инженер": 3
+  "машинного обучения": 3
+  "машинное обучение": 3
+  нейросети: 2
+  нейросетей: 2
+  ии: 2
+  mlops: 2
+  "data scientist": 2
+  "data science": 2
+  "data engineer": 2
   # backend-фундамент (CV Backend)
   fastapi: 2
   python: 2
   backend: 1
   бэкенд: 1
   asyncio: 1
-  golang: 2           # фоновый трек; Go-вакансии проходят порог только с golang в заголовке
+  golang: 2 # фоновый трек; Go-вакансии проходят порог только с golang в заголовке
   rabbitmq: 1
   kafka: 1
   postgresql: 1
@@ -60,28 +73,34 @@ keywords:
   тестировщик: -2
   sales: -3
   продажи: -3
+  продажам: -3
+  "product manager": -3
+  менеджер: -2
+  аналитик: -2
+  "manual qa": -3
+  тестированию: -2
 
 remoteok: true
 
 # открытые API / RSS (sources/boards.py); убери строку, чтобы выключить площадку
 boards:
-  - remotive        # remote, весь мир
-  - himalayas       # remote, весь мир
-  - jobicy          # remote, весь мир
-  - workingnomads   # remote
-  - wwr             # We Work Remotely
-  - jobspresso      # remote
-  - nodesk          # remote
-  - hn              # Hacker News "Who is hiring?" — сильные компании, remote и релокация
-  - arbeitnow       # Европа, в основном Германия (релокация)
-  - landingjobs     # Португалия / Европа, флаг relocation paid
-  - getmatch        # RU IT-рынок, remote и релокация
-  - djinni          # Python-вакансии, в основном remote (украинский рынок)
+  - remotive # remote, весь мир
+  - himalayas # remote, весь мир
+  - jobicy # remote, весь мир
+  - workingnomads # remote
+  - wwr # We Work Remotely
+  - jobspresso # remote
+  - nodesk # remote
+  - hn # Hacker News "Who is hiring?" — сильные компании, remote и релокация
+  - arbeitnow # Европа, в основном Германия (релокация)
+  - landingjobs # Португалия / Европа, флаг relocation paid
+  - getmatch # RU IT-рынок, remote и релокация
+  - djinni # Python-вакансии, в основном remote (украинский рынок)
 
 # поисковые запросы для площадок с поиском (himalayas, jobicy)
 board_queries: [python, llm, machine learning, ai engineer, fastapi]
 
-habr_queries:        # широкий охват: дубли отсекает база, фильтр — скоринг
+habr_queries: # широкий охват: дубли отсекает база, фильтр — скоринг
   - python llm
   - rag
   - fastapi
@@ -92,24 +111,24 @@ habr_queries:        # широкий охват: дубли отсекает б
 # нужен app на dev.hh.ru (HH_CLIENT_ID/SECRET в .env), иначе источник выключен
 hh:
   texts: ["python llm", "ai engineer", "fastapi backend"]
-  areas: [40, 113]   # 40 Казахстан, 113 Россия
+  areas: [40, 113] # 40 Казахстан, 113 Россия
   period_days: 3
 
 # нужны TG_API_ID/TG_API_HASH в .env и разовый логин; пока пусто — источник выключен
 telegram_channels:
-  - aitujobs              # Daily Jobs IT KZ
-  - datajobskz            # KZ Jobs Data Science & Engineering
-  - itvacancykz           # ITvacancy KZ & UZ
-  - workitkz              # IT Вакансии Казахстан
-  - pydevjob              # Python jobs (Django, Flask, ...)
-  - job_python            # Python Job | Вакансии | Стажировки
-  - datascienceml_jobs    # Data Science Jobs
-  - data_secrets_career   # Data Secrets | Карьера
-  - jobgolang             # Вакансии Golang (фоновый трек Go)
-  - young_june            # Young & Junior - вакансии IT
-  - devs_kz               # Devs.kz (сообщество, вакансии вперемешку)
-  - hrlunapark            # западные senior/staff вакансии, релокация в Амстердам/Лондон/NY
-  - remote_job_golang     # подборки Go remote за сутки
-  - Young_and_Yandex      # ML-стажировки Яндекса
-  - Machinelearning_Jobs  # группа; без веб-превью, не проверена
-  - datakzgroup           # группа; без веб-превью, не проверена
+  - aitujobs # Daily Jobs IT KZ
+  - datajobskz # KZ Jobs Data Science & Engineering
+  - itvacancykz # ITvacancy KZ & UZ
+  - workitkz # IT Вакансии Казахстан
+  - pydevjob # Python jobs (Django, Flask, ...)
+  - job_python # Python Job | Вакансии | Стажировки
+  - datascienceml_jobs # Data Science Jobs
+  - data_secrets_career # Data Secrets | Карьера
+  - jobgolang # Вакансии Golang (фоновый трек Go)
+  - young_june # Young & Junior - вакансии IT
+  - devs_kz # Devs.kz (сообщество, вакансии вперемешку)
+  - hrlunapark # западные senior/staff вакансии, релокация в Амстердам/Лондон/NY
+  - remote_job_golang # подборки Go remote за сутки
+  - Young_and_Yandex # ML-стажировки Яндекса
+  - Machinelearning_Jobs # группа; без веб-превью, не проверена
+  - datakzgroup # группа; без веб-превью, не проверена

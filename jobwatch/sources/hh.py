@@ -4,8 +4,9 @@ import os
 
 import httpx
 
+from .. import db
 from ..db import Vacancy
-from ..scoring import strip_html
+from ..scoring import score, strip_html
 
 NAME = "hh"
 API = "https://api.hh.ru"
@@ -44,7 +45,7 @@ async def fetch(cfg: dict) -> list[Vacancy]:
     global _token
     c = cfg["hh"]
     ua = os.environ.get("HH_USER_AGENT", "jobwatch/0.1 (set-your-email@example.com)")
-    out = []
+    found: dict[str, Vacancy] = {}  # one vacancy often matches several search texts
     async with httpx.AsyncClient(headers={"User-Agent": ua, "HH-User-Agent": ua}, timeout=20) as http:
         headers = {"Authorization": f"Bearer {await _auth(http)}"}
         for text in c["texts"]:
@@ -61,16 +62,33 @@ async def fetch(cfg: dict) -> list[Vacancy]:
             r.raise_for_status()
             for j in r.json()["items"]:
                 sn = j.get("snippet") or {}
-                out.append(
-                    Vacancy(
-                        source=NAME,
-                        ext_id=str(j["id"]),
-                        title=j["name"],
-                        company=(j.get("employer") or {}).get("name", ""),
-                        url=j["alternate_url"],
-                        salary=_salary(j.get("salary")),
-                        text=strip_html(f"{sn.get('requirement') or ''} {sn.get('responsibility') or ''}"),
-                    )
+                found[str(j["id"])] = Vacancy(
+                    source=NAME,
+                    ext_id=str(j["id"]),
+                    title=j["name"],
+                    company=(j.get("employer") or {}).get("name", ""),
+                    url=j["alternate_url"],
+                    salary=_salary(j.get("salary")),
+                    text=strip_html(f"{sn.get('requirement') or ''} {sn.get('responsibility') or ''}"),
                 )
             await asyncio.sleep(1)
-    return out
+
+        # Search returns a ~300-char snippet, too little to score ("Python-разработчик" stayed at 4 < 6).
+        # Full description + key skills for NEW vacancies that already look half-relevant, like Habr.
+        half = cfg["threshold"] / 2
+        for v in found.values():
+            if db.seen(NAME, v.ext_id) or score(v.title, v.text, cfg["keywords"]) < half:
+                continue
+            v.text += ". " + await details(http, headers, v.ext_id)
+            await asyncio.sleep(0.5)
+    return list(found.values())
+
+
+async def details(http: httpx.AsyncClient, headers: dict, vid: str) -> str:
+    r = await http.get(f"{API}/vacancies/{vid}", headers=headers)
+    if r.status_code != 200:
+        log.warning("hh vacancy %s: HTTP %s", vid, r.status_code)
+        return ""
+    d = r.json()
+    skills = ", ".join(s["name"] for s in d.get("key_skills") or [])
+    return f"{skills}. {strip_html(d.get('description', ''))}"
