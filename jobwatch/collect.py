@@ -3,6 +3,7 @@ import logging
 import time
 
 from . import config, db, mq
+from .requeue import publish_all
 from .scoring import score
 from .sources import boards, habr, hh, remoteok, telegram
 
@@ -48,7 +49,13 @@ async def main():
     db.init()
     connection = await aio_pika.connect_robust(config.AMQP_URL)
     channel = await connection.channel()
-    await mq.declare(channel)
+    queue = await mq.declare(channel)
+    if queue.declaration_result.message_count == 0:
+        # broker lost its data (new node, deleted volume): SQLite still knows what is waiting.
+        # ponytail: the one card the bot may hold unanswered can come twice; harmless, the bot skips decided ones
+        restored = await publish_all(channel)
+        if restored:
+            log.warning("queue was empty, restored %d vacancies from SQLite", restored)
     while True:
         cfg = config.load()
         try:

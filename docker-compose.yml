@@ -17,6 +17,7 @@ x-app: &app
 services:
   rabbitmq:
     image: rabbitmq:4-management
+    hostname: rabbitmq # data is stored per node name rabbit@<hostname>; a random one loses the queue on every recreate
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: jobwatch # "guest" is refused from other containers
