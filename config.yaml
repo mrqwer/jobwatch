@@ -117,7 +117,8 @@ habr_queries: # широкий охват: дубли отсекает база,
 
 # нужен app на dev.hh.ru (HH_CLIENT_ID/SECRET в .env), иначе источник выключен
 hh:
-  texts: ["python llm", "ai engineer", "fastapi backend"]
+  # широко: hh ищет все слова сразу, "python llm" терял "AI-инженер (Python)"; шум режет скоринг
+  texts: ["python", "LLM", "ai engineer", "ИИ инженер", "ml engineer", "machine learning", "data scientist", "golang"]
   areas: [40, 113] # 40 Казахстан, 113 Россия
   period_days: 3
 

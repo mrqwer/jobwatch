@@ -67,18 +67,7 @@ async def fetch(cfg: dict) -> list[Vacancy]:
     async with httpx.AsyncClient(headers={"User-Agent": ua, "HH-User-Agent": ua}, timeout=20) as http:
         headers = {"Authorization": f"Bearer {await _auth(http)}"}
         for text in c["texts"]:
-            params = {
-                "text": text,
-                "area": c.get("areas", []),  # 40 = Kazakhstan, 113 = Russia, 1 = Moscow ...
-                "order_by": "publication_time",
-                "period": c.get("period_days", 3),
-                "per_page": 100,
-            }
-            r = await http.get(f"{API}/vacancies", params=params, headers=headers)
-            if r.status_code in (401, 403):
-                _forget()  # token revoked -> re-auth on the next cycle
-            r.raise_for_status()
-            for j in r.json()["items"]:
+            for j in await _search(http, headers, text, c):
                 sn = j.get("snippet") or {}
                 found[str(j["id"])] = Vacancy(
                     source=NAME,
@@ -89,7 +78,6 @@ async def fetch(cfg: dict) -> list[Vacancy]:
                     salary=_salary(j.get("salary")),
                     text=strip_html(f"{sn.get('requirement') or ''} {sn.get('responsibility') or ''}"),
                 )
-            await asyncio.sleep(1)
 
         # Search returns a ~300-char snippet, too little to score ("Python-разработчик" stayed at 4 < 6).
         # Full description + key skills for NEW vacancies that already look half-relevant, like Habr.
@@ -100,6 +88,29 @@ async def fetch(cfg: dict) -> list[Vacancy]:
             v.text += ". " + await details(http, headers, v.ext_id)
             await asyncio.sleep(0.5)
     return list(found.values())
+
+
+async def _search(http: httpx.AsyncClient, headers: dict, text: str, c: dict) -> list[dict]:
+    """All pages: one page was 100 of 312 for "ai engineer". hh serves at most 2000 (20 pages)."""
+    items, page, pages = [], 0, 1
+    while page < min(pages, 20):
+        params = {
+            "text": text,
+            "area": c.get("areas", []),  # 40 = Kazakhstan, 113 = Russia, 1 = Moscow ...
+            "order_by": "publication_time",
+            "period": c.get("period_days", 3),
+            "per_page": 100,
+            "page": page,
+        }
+        r = await http.get(f"{API}/vacancies", params=params, headers=headers)
+        if r.status_code in (401, 403):
+            _forget()  # token revoked -> re-auth on the next cycle
+        r.raise_for_status()
+        data = r.json()
+        items += data["items"]
+        pages, page = data["pages"], page + 1
+        await asyncio.sleep(1)
+    return items
 
 
 async def details(http: httpx.AsyncClient, headers: dict, vid: str) -> str:
