@@ -88,6 +88,7 @@ async def help_(m: Message):
     await m.answer(
         "/stats — счётчики и длина очереди\n"
         "/liked — последние ✅\n"
+        "/unlike &lt;id&gt; [id …] — убрать из ✅ (в отсеянные)\n"
         "/skipped — отсеянные по порогу, лучшие сверху (проверка фильтра)\n"
         "/promote &lt;id&gt; — вернуть отсеянную в очередь"
     )
@@ -117,6 +118,21 @@ async def liked(m: Message):
 @dp.message(Command("skipped"))
 async def skipped(m: Message):
     await m.answer(lines(db.listing("skipped", 15)), disable_web_page_preview=True)
+
+
+@dp.message(Command("unlike"))
+async def unlike(m: Message, command):
+    """Move ✅ back to skipped (not ❌): /promote can return it to the queue later."""
+    ids = [int(x) for x in (command.args or "").replace(",", " ").split() if x.isdigit()]
+    if not ids:
+        await m.answer("/unlike &lt;id&gt; [id …] — номера из /liked")
+        return
+    done = [i for i in ids if db.set_status(i, "skipped", only_from="yes")]
+    missed = [i for i in ids if i not in done]
+    text = f"убрал из ✅: {', '.join(f'#{i}' for i in done)}" if done else "ничего не убрал"
+    if missed:
+        text += f"\nне в ✅: {', '.join(f'#{i}' for i in missed)}"
+    await m.answer(text)
 
 
 @dp.message(Command("promote"))
