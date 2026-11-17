@@ -42,5 +42,9 @@ services:
     <<: *app
     command: python -m jobwatch.bot
 
+  scorer: # LLM verdict for every vacancy (jobwatch/llm.py); idle without keys in .env
+    <<: *app
+    command: python -m jobwatch.llm
+
 volumes:
   rabbitmq:

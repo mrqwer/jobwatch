@@ -7,7 +7,8 @@ from dataclasses import dataclass
 
 DB_PATH = os.environ.get("DB_PATH", "data/jobwatch.db")
 
-# status: queued (in RabbitMQ, waiting for verdict) | skipped (below threshold) | yes | no
+# status: pending (waiting for the LLM verdict) | queued (in RabbitMQ, waiting for your verdict)
+#       | skipped (LLM said no / below threshold) | yes | no | dup
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS vacancies (
   id INTEGER PRIMARY KEY,
@@ -33,6 +34,8 @@ class Vacancy:
     id: int = 0
     score: float = 0
     status: str = ""
+    llm_verdict: str = ""  # fit | maybe | no, empty until the LLM judged it
+    llm: str = ""  # the LLM answer as JSON: summary, why, missing, cv, model
 
 
 # ponytail: sync sqlite3 called from async code; calls are ~1ms, aiosqlite if that ever hurts
@@ -52,10 +55,11 @@ def init():
     with conn() as c:
         c.execute("PRAGMA journal_mode=WAL")  # collector and bot share the file
         c.executescript(SCHEMA)
-        try:  # migration for databases created before fingerprints
-            c.execute("ALTER TABLE vacancies ADD COLUMN fp TEXT")
-        except sqlite3.OperationalError:
-            pass
+        for col in ("fp", "llm_verdict", "llm"):  # migrations for databases created before these columns
+            try:
+                c.execute(f"ALTER TABLE vacancies ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError:
+                pass
         c.execute("CREATE INDEX IF NOT EXISTS vacancies_fp ON vacancies (fp)")
 
 
@@ -123,6 +127,16 @@ def set_status(vid: int, status: str, only_from: str | None = None) -> bool:
             " decided_at=CASE WHEN ? IN ('yes','no') THEN CURRENT_TIMESTAMP END"
             " WHERE id=? AND (? IS NULL OR status=?)",
             (status, status, vid, only_from, only_from),
+        )
+        return cur.rowcount > 0
+
+
+def set_llm(vid: int, verdict: str, answer: str, status: str) -> bool:
+    """Store the LLM verdict and move the row. Rows you already answered (yes/no) or dups are left alone."""
+    with conn() as c:
+        cur = c.execute(
+            "UPDATE vacancies SET llm_verdict=?, llm=?, status=? WHERE id=? AND status IN ('pending','skipped','queued')",
+            (verdict, answer, status, vid),
         )
         return cur.rowcount > 0
 

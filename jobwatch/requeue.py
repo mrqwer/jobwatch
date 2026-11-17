@@ -15,10 +15,18 @@ from . import config, db, mq
 
 
 async def publish_all(channel) -> int:
+    """Queued rows to the bot (priority from the LLM verdict, else the keyword score), pending rows to the LLM."""
     with db.conn() as c:
-        rows = c.execute("SELECT id, score FROM vacancies WHERE status='queued'").fetchall()
-    for vid, score in rows:
-        await mq.publish(channel, vid, score)
+        rows = c.execute(
+            "SELECT id, status, CASE llm_verdict WHEN 'fit' THEN ? WHEN 'maybe' THEN ? ELSE score END"
+            " FROM vacancies WHERE status IN ('queued','pending')",
+            (mq.VERDICT_PRIORITY["fit"], mq.VERDICT_PRIORITY["maybe"]),
+        ).fetchall()
+    for vid, status, priority in rows:
+        if status == "pending":
+            await mq.publish(channel, vid, mq.LLM_NEW, queue=mq.LLM_QUEUE)
+        else:
+            await mq.publish(channel, vid, priority)
     return len(rows)
 
 

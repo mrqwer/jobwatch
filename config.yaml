@@ -140,3 +140,49 @@ telegram_channels:
   - Young_and_Yandex # ML-стажировки Яндекса
   - Machinelearning_Jobs # группа; без веб-превью, не проверена
   - datakzgroup # группа; без веб-превью, не проверена
+
+# LLM-оценка: каждая вакансия идёт к модели (профиль кандидата — profile.md рядом).
+# Слот = провайдер + модель со своими бесплатными лимитами. Слот без ключа в .env выключен.
+# Лимит кончился (HTTP 429) — слот спит до сброса, остальные работают. Ключи и регистрация — LLM_SETUP.md.
+# rpm/rpd — сколько запросов разрешаем себе (ниже лимита провайдера); batch — вакансий в одном запросе.
+# Проверить id моделей: docker compose exec scorer python -m jobwatch.llm models
+llm:
+  # по заголовку — явно не моё, не тратим квоту (целое слово, регистр не важен)
+  reject_titles: [1с, 1c, php, wordpress, bitrix, битрикс, ios, android, flutter, unity, дизайнер, designer,
+                  бухгалтер, "менеджер по продажам", "sales manager", "account executive", копирайтер, оператор]
+  slots:
+    # Google AI Studio: лимиты на каждую модель отдельно
+    - {name: gemini-flash-lite, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,
+       model: gemini-flash-lite-latest, rpm: 10, rpd: 450, batch: 5}
+    - {name: gemini-flash, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,
+       model: gemini-flash-latest, rpm: 5, rpd: 18, batch: 5}
+    - {name: gemma, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,
+       model: gemma-3-27b-it, rpm: 20, rpd: 13000, batch: 3, max_chars: 2500, json: false, system: false}
+    # Groq: мало токенов в минуту/день на бесплатном, поэтому редко и пачками
+    - {name: groq-gpt-oss-120b, url: "https://api.groq.com/openai/v1", key: GROQ_API_KEY,
+       model: openai/gpt-oss-120b, rpm: 1.5, rpd: 900, batch: 3, extra: {reasoning_effort: low}}
+    - {name: groq-gpt-oss-20b, url: "https://api.groq.com/openai/v1", key: GROQ_API_KEY,
+       model: openai/gpt-oss-20b, rpm: 1.5, rpd: 900, batch: 3, extra: {reasoning_effort: low}}
+    # Cerebras: ~1M токенов в день на бесплатном
+    - {name: cerebras-gpt-oss-120b, url: "https://api.cerebras.ai/v1", key: CEREBRAS_API_KEY,
+       model: gpt-oss-120b, rpm: 4, batch: 5, extra: {reasoning_effort: low}}
+    # Mistral (бесплатный план Experiment): самый большой объём
+    - {name: mistral-small, url: "https://api.mistral.ai/v1", key: MISTRAL_API_KEY,
+       model: mistral-small-latest, rpm: 20, batch: 5}
+    - {name: mistral-medium, url: "https://api.mistral.ai/v1", key: MISTRAL_API_KEY,
+       model: mistral-medium-latest, rpm: 10, batch: 5}
+    # OpenRouter: 50 запросов в день на все :free модели (1000 после пополнения на $10)
+    - {name: openrouter, url: "https://openrouter.ai/api/v1", key: OPENROUTER_API_KEY,
+       model: "openai/gpt-oss-120b:free", rpm: 10, rpd: 48, batch: 5}
+    # GitHub Models: токен GitHub с правом models:read; вход ограничен ~8k токенов
+    - {name: github-gpt-4.1-mini, url: "https://models.github.ai/inference", key: GITHUB_MODELS_TOKEN,
+       model: openai/gpt-4.1-mini, rpm: 10, rpd: 140, batch: 2, max_chars: 2000}
+    # NVIDIA build.nvidia.com: ~40 запросов в минуту
+    - {name: nvidia-gpt-oss-120b, url: "https://integrate.api.nvidia.com/v1", key: NVIDIA_API_KEY,
+       model: openai/gpt-oss-120b, rpm: 20, batch: 5}
+    # SambaNova Cloud
+    - {name: sambanova, url: "https://api.sambanova.ai/v1", key: SAMBANOVA_API_KEY,
+       model: gpt-oss-120b, rpm: 10, batch: 5}
+    # Cloudflare Workers AI: 10k "нейронов" в день, хватает на десятки запросов
+    - {name: cloudflare, url: "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
+       key: CLOUDFLARE_API_TOKEN, model: "@cf/openai/gpt-oss-120b", rpm: 5, rpd: 60, batch: 3}

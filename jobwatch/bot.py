@@ -3,6 +3,7 @@ press yes/no. Until then the rest stay in the queue; a restart re-delivers the u
 
 import asyncio
 import html
+import json
 import logging
 import os
 import time
@@ -29,11 +30,22 @@ pending: dict[int, aio_pika.abc.AbstractIncomingMessage] = {}
 channel: aio_pika.abc.AbstractChannel
 
 
+MARK = {"fit": "🟢 подходит", "maybe": "🟡 возможно"}
+
+
 def card(v: db.Vacancy) -> str:
     head = f"<b>{html.escape(v.title)}</b>\n"
-    meta = " · ".join(x for x in (v.company, v.source, v.salary, f"score {v.score:g}") if x)
-    body = html.escape(v.text[:400]) + ("…" if len(v.text) > 400 else "")
-    return f"{head}{html.escape(meta)}\n\n{body}\n\n<a href=\"{html.escape(v.url)}\">открыть</a>"
+    if v.llm:  # the model's reading instead of the raw text
+        a = json.loads(v.llm)
+        meta = " · ".join(x for x in (v.company, v.source, v.salary) if x)
+        tags = " · ".join(x for x in (MARK.get(a["verdict"], a["verdict"]), f"CV {a.get('cv', '?')}",
+                                       a.get("level", ""), a.get("work", "")) if x and x != "unknown")
+        body = "\n".join(x for x in (tags, a.get("summary", ""), a.get("why", "") and f"почему: {a['why']}",
+                                      a.get("missing", "") and f"не хватает: {a['missing']}") if x)
+    else:
+        meta = " · ".join(x for x in (v.company, v.source, v.salary, f"score {v.score:g}") if x)
+        body = v.text[:400] + ("…" if len(v.text) > 400 else "")
+    return f"{head}{html.escape(meta)}\n\n{html.escape(body)}\n\n<a href=\"{html.escape(v.url)}\">открыть</a>"
 
 
 def keyboard(vid: int) -> InlineKeyboardMarkup:
@@ -97,16 +109,25 @@ async def help_(m: Message):
 @dp.message(Command("stats"))
 async def stats(m: Message):
     q = await mq.declare(channel)
+    lq = await mq.declare_llm(channel)
     c = db.counts()
     now = time.time()
     health = "\n".join(
         f"{'⚠️' if now - ts > STALE_SECONDS else '✓'} {name}: {int((now - ts) // 60)} мин назад"
         for name, ts in db.cursors("ok:").items()
     ) or "источники ещё ни разу не отработали"
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    asleep = db.cursors("llm_until:")
+    used = "\n".join(
+        f"{'💤' if asleep.get(k.rsplit(':', 1)[0], 0) > now else '⚡'} {k.rsplit(':', 1)[0]}: {n} запросов"
+        for k, n in db.cursors("llm:").items() if k.endswith(today)
+    )
     await m.answer(
         f"в очереди: {q.declaration_result.message_count} (+{len(pending)} ждёт ответа)\n"
+        f"ждут LLM: {lq.declaration_result.message_count}\n"
         f"✅ {c.get('yes', 0)} · ❌ {c.get('no', 0)} · отсеяно {c.get('skipped', 0)}\n\n"
         f"последний успешный сбор:\n{health}"
+        + (f"\n\nLLM сегодня (UTC):\n{used}" if used else "")
     )
 
 
