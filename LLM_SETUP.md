@@ -18,7 +18,6 @@
 | `GROQ_API_KEY` | https://console.groq.com/keys | Регистрация → **Create API Key**. Без карты. |
 | `NVIDIA_API_KEY` | https://build.nvidia.com | Войти → открыть любую модель → **Get API Key** (ключ начинается с `nvapi-`). |
 | `OPENROUTER_API_KEY` | https://openrouter.ai/settings/keys | Регистрация → **Create Key**. Без пополнения 50 запросов в день. |
-| `GITHUB_MODELS_TOKEN` | https://github.com/settings/personal-access-tokens | **Fine-grained token** → Permissions → Account → **Models: Read** → Generate. |
 | `SAMBANOVA_API_KEY` | https://cloud.sambanova.ai | Регистрация → **API Keys**. |
 | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | https://dash.cloudflare.com | AI → **Workers AI** → **Use REST API**: там Account ID и кнопка **Create a Workers AI API Token**. |
 
@@ -36,14 +35,15 @@ nano .env              # вписать ключи, пустые оставит�
 docker compose up -d --build --force-recreate collector scorer bot
 ```
 
-## 3. Проверить, что модели доступны
+## 3. Проверить, что каждый слот работает
 
 ```bash
 docker compose exec scorer python -m jobwatch.llm models
 ```
 
-Для каждого слота пишет `[есть]` или `[НЕТ в списке]`. Если нет — провайдер переименовал модель: выбери id из
-напечатанного списка и поправь `model:` этого слота в `config.yaml` (применяется после `docker compose restart scorer`).
+Каждому слоту уходит одна настоящая вакансия: `OK` — ключ, адрес и модель рабочие; `FAIL` — ошибка и список моделей
+провайдера. Провайдер переименовал модель — выбери id из списка, поправь `model:` в `config.yaml`, `docker compose restart scorer`.
+У OpenRouter бесплатные модели (`:free`) меняются часто.
 
 ## 4. Калибровка: согласна ли модель с тобой
 

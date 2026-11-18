@@ -157,7 +157,7 @@ llm:
     - {name: gemini-flash, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,
        model: gemini-flash-latest, rpm: 5, rpd: 18, batch: 5}
     - {name: gemma, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,
-       model: gemma-3-27b-it, rpm: 20, rpd: 13000, batch: 3, max_chars: 2500, json: false, system: false}
+       model: gemma-4-31b-it, rpm: 20, rpd: 13000, batch: 3, max_chars: 2500, json: false, system: false}
     # Groq: мало токенов в минуту/день на бесплатном, поэтому редко и пачками
     - {name: groq-gpt-oss-120b, url: "https://api.groq.com/openai/v1", key: GROQ_API_KEY,
        model: openai/gpt-oss-120b, rpm: 1.5, rpd: 900, batch: 3, extra: {reasoning_effort: low}}
@@ -173,10 +173,7 @@ llm:
        model: mistral-medium-latest, rpm: 10, batch: 5}
     # OpenRouter: 50 запросов в день на все :free модели (1000 после пополнения на $10)
     - {name: openrouter, url: "https://openrouter.ai/api/v1", key: OPENROUTER_API_KEY,
-       model: "openai/gpt-oss-120b:free", rpm: 10, rpd: 48, batch: 5}
-    # GitHub Models: токен GitHub с правом models:read; вход ограничен ~8k токенов
-    - {name: github-gpt-4.1-mini, url: "https://models.github.ai/inference", key: GITHUB_MODELS_TOKEN,
-       model: openai/gpt-4.1-mini, rpm: 10, rpd: 140, batch: 2, max_chars: 2000}
+       model: "nvidia/nemotron-3-ultra-550b-a55b:free", rpm: 10, rpd: 48, batch: 5}
     # NVIDIA build.nvidia.com: ~40 запросов в минуту
     - {name: nvidia-gpt-oss-120b, url: "https://integrate.api.nvidia.com/v1", key: NVIDIA_API_KEY,
        model: openai/gpt-oss-120b, rpm: 20, batch: 5}
