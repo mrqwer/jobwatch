@@ -72,13 +72,20 @@ class SlotError(Exception):
 
 
 def slots(cfg: dict) -> list[Slot]:
+    """One slot per key in .env. Extra accounts: KEY_2, KEY_3, ... (any number) give slots name-2, name-3, ...
+    with their own limits; ${VAR} in the url prefers VAR_2 for account 2 (Cloudflare account id)."""
     out = []
     for s in cfg.get("llm", {}).get("slots", []):
-        key = os.environ.get(s["key"], "")
-        if not key:
-            continue  # no key in .env -> slot off
-        known = {k: v for k, v in s.items() if k in Slot.__dataclass_fields__ and k not in ("key", "url")}
-        out.append(Slot(url=os.path.expandvars(s["url"]).rstrip("/"), key=key, **known))
+        extra = sorted((k for k in os.environ if re.fullmatch(re.escape(s["key"]) + r"_\d+", k)),
+                       key=lambda k: int(k.rsplit("_", 1)[1]))
+        for env in [s["key"], *extra]:
+            key = os.environ.get(env, "")
+            if not key:
+                continue  # no key in .env -> slot off
+            n = env[len(s["key"]):]  # "" or "_2"
+            url = re.sub(r"\$\{(\w+)\}", lambda m: os.environ.get(m[1] + n) or os.environ.get(m[1], ""), s["url"])
+            known = {k: v for k, v in s.items() if k in Slot.__dataclass_fields__ and k not in ("key", "url", "name")}
+            out.append(Slot(name=s["name"] + n.replace("_", "-"), url=url.rstrip("/"), key=key, **known))
     return out
 
 

@@ -36,6 +36,15 @@ def test_slots_need_a_key(monkeypatch):
     assert (s.name, s.key, s.url, s.batch) == ("a", "secret", "https://x/v1", 3)
 
 
+def test_extra_accounts_get_own_slots(monkeypatch):
+    cfg = {"llm": {"slots": [{"name": "cf", "url": "https://x/acc/${ACC}/v1", "key": "K", "model": "m"}]}}
+    for k, v in {"K": "k1", "K_2": "k2", "K_10": "k10", "K_3": "", "ACC": "a1", "ACC_2": "a2"}.items():
+        monkeypatch.setenv(k, v)
+    got = [(s.name, s.key, s.url) for s in llm.slots(cfg)]
+    assert got == [("cf", "k1", "https://x/acc/a1/v1"), ("cf-2", "k2", "https://x/acc/a2/v1"),
+                   ("cf-10", "k10", "https://x/acc/a1/v1")]
+
+
 def test_rejected_by_title():
     cfg = {"llm": {"reject_titles": ["php", "менеджер по продажам"]}}
     assert llm.rejected("Senior PHP Developer", cfg)
