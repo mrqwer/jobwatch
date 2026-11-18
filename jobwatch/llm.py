@@ -299,11 +299,14 @@ async def calibrate(name: str | None):
     async with httpx.AsyncClient(timeout=180) as http:
         for i in range(0, len(vs), s.batch):
             chunk = vs[i : i + s.batch]
-            try:
-                res = await ask(http, s, chunk)
-            except SlotError as e:
-                print(f"{s.name}: {e}")
-                return
+            res = {}
+            for _ in range(3):  # 503 "high demand" is common on free tiers and passes in a minute
+                try:
+                    res = await ask(http, s, chunk)
+                    break
+                except SlotError as e:
+                    print(f"{s.name}: {str(e)[:150]} — повтор через {min(e.wait, 60):.0f}с")
+                    await asyncio.sleep(min(e.wait, 60))
             for v in chunk:
                 a = res.get(v.id, {})
                 you = "✅" if v.status == "yes" else "❌"
