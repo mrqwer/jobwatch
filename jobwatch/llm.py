@@ -94,9 +94,11 @@ def enabled(cfg: dict) -> bool:
 
 
 def rejected(title: str, cfg: dict) -> bool:
-    """Obvious junk by title (1C, PHP, sales...): not worth a request."""
-    words = cfg.get("llm", {}).get("reject_titles", [])
-    return score(title, "", {w: 1 for w in words}) > 0
+    """Obvious junk by title (1C, PHP, sales...): not worth a request.
+    A target word in the same title wins: "Backend (PHP / Python)", "Go/PHP разработчик" go to the LLM."""
+    c = cfg.get("llm", {})
+    hit = lambda words: score(title, "", {w: 1 for w in words}) > 0
+    return hit(c.get("reject_titles", [])) and not hit(c.get("keep_titles", []))
 
 
 def profile() -> str:

@@ -150,6 +150,8 @@ llm:
   # по заголовку — явно не моё, не тратим квоту (целое слово, регистр не важен)
   reject_titles: [1с, 1c, php, wordpress, bitrix, битрикс, ios, android, flutter, unity, дизайнер, designer,
                   бухгалтер, "менеджер по продажам", "sales manager", "account executive", копирайтер, оператор]
+  # ...но если в заголовке есть целевое слово — всё равно к модели ("Fullstack (PHP/Python)", "Go/PHP разработчик")
+  keep_titles: [python, golang, go, llm, ai, ии, ml, "machine learning", "data", django, fastapi, rag, nlp]
   slots:
     # Google AI Studio: лимиты на каждую модель отдельно
     - {name: gemini-flash-lite, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,

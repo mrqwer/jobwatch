@@ -49,6 +49,10 @@ def test_rejected_by_title():
     cfg = {"llm": {"reject_titles": ["php", "менеджер по продажам"]}}
     assert llm.rejected("Senior PHP Developer", cfg)
     assert not llm.rejected("Python developer (PHPUnit not needed)", cfg)
+    cfg["llm"]["keep_titles"] = ["python", "go"]
+    assert not llm.rejected("Backend-разработчик (PHP / Python)", cfg)
+    assert not llm.rejected("Go/PHP разработчик", cfg)
+    assert llm.rejected("Senior PHP Developer", cfg)
 
 
 def test_llm_verdict_never_touches_your_answer(tmp_path, monkeypatch):
