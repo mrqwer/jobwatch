@@ -267,12 +267,25 @@ async def models():
     async with httpx.AsyncClient(timeout=30) as http:
         for s in slots(config.load()):
             if (s.url, s.key) not in listed:
-                r = await http.get(f"{s.url}/models", headers={"Authorization": f"Bearer {s.key}"})
-                ids = sorted(m.get("id", "") for m in r.json().get("data", [])) if r.status_code == 200 else []
+                # GitHub Models lists its catalog elsewhere, as a bare JSON array
+                url = "https://models.github.ai/catalog/models" if "models.github.ai" in s.url else f"{s.url}/models"
+                try:
+                    r = await http.get(url, headers={"Authorization": f"Bearer {s.key}"})
+                    data = r.json() if r.status_code == 200 else []
+                except (httpx.HTTPError, ValueError) as e:  # network error or non-JSON body: report, go on
+                    print(f"\n== {url}  {type(e).__name__}: {e}"[:300])
+                    listed[(s.url, s.key)] = []
+                    print(f"  -> slot {s.name}: {s.model} [не проверить, запусти calibrate {s.name}]")
+                    continue
+                items = data.get("data", []) if isinstance(data, dict) else data
+                ids = sorted(m["id"] for m in items if isinstance(m, dict) and m.get("id"))
                 listed[(s.url, s.key)] = ids
                 print(f"\n== {s.url}  HTTP {r.status_code}  {len(ids)} models")
                 print("  " + "\n  ".join(ids) if ids else "  " + r.text[:300])
             ids = listed[(s.url, s.key)]
+            if not ids:
+                print(f"  -> slot {s.name}: {s.model} [не проверить, запусти calibrate {s.name}]")
+                continue
             found = "есть" if any(s.model in i or i in s.model for i in ids) else "НЕТ в списке"
             print(f"  -> slot {s.name}: {s.model} [{found}]")
 
