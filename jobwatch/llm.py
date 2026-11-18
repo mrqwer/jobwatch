@@ -263,31 +263,28 @@ async def run():
 
 
 async def models():
-    listed: dict[tuple, list[str]] = {}
-    async with httpx.AsyncClient(timeout=30) as http:
+    """One real request per slot: proves key, url and model id together. Lists the provider's models on failure."""
+    with db.conn() as c:
+        row = c.execute("SELECT id FROM vacancies WHERE status IN ('yes','no') ORDER BY id DESC LIMIT 1").fetchone() \
+            or c.execute("SELECT id FROM vacancies ORDER BY id DESC LIMIT 1").fetchone()
+    v = db.get(row[0])
+    print(f"тестовая вакансия: {v.id} {v.title}")
+    async with httpx.AsyncClient(timeout=180) as http:
         for s in slots(config.load()):
-            if (s.url, s.key) not in listed:
-                # GitHub Models lists its catalog elsewhere, as a bare JSON array
-                url = "https://models.github.ai/catalog/models" if "models.github.ai" in s.url else f"{s.url}/models"
-                try:
-                    r = await http.get(url, headers={"Authorization": f"Bearer {s.key}"})
-                    data = r.json() if r.status_code == 200 else []
-                except (httpx.HTTPError, ValueError) as e:  # network error or non-JSON body: report, go on
-                    print(f"\n== {url}  {type(e).__name__}: {e}"[:300])
-                    listed[(s.url, s.key)] = []
-                    print(f"  -> slot {s.name}: {s.model} [не проверить, запусти calibrate {s.name}]")
-                    continue
+            try:
+                answer = (await ask(http, s, [v])).get(v.id)
+                print(f"OK   {s.name}: {s.model} -> {answer['verdict'] if answer else 'ответ без этой вакансии'}")
+                continue
+            except SlotError as e:
+                print(f"FAIL {s.name}: {s.model} -> {e}")
+            try:  # what the provider does have
+                r = await http.get(f"{s.url}/models", headers={"Authorization": f"Bearer {s.key}"})
+                data = r.json()
                 items = data.get("data", []) if isinstance(data, dict) else data
                 ids = sorted(m["id"] for m in items if isinstance(m, dict) and m.get("id"))
-                listed[(s.url, s.key)] = ids
-                print(f"\n== {s.url}  HTTP {r.status_code}  {len(ids)} models")
-                print("  " + "\n  ".join(ids) if ids else "  " + r.text[:300])
-            ids = listed[(s.url, s.key)]
-            if not ids:
-                print(f"  -> slot {s.name}: {s.model} [не проверить, запусти calibrate {s.name}]")
-                continue
-            found = "есть" if any(s.model in i or i in s.model for i in ids) else "НЕТ в списке"
-            print(f"  -> slot {s.name}: {s.model} [{found}]")
+                print("     есть: " + ", ".join(ids))
+            except (httpx.HTTPError, ValueError, AttributeError):
+                pass
 
 
 async def calibrate(name: str | None):
