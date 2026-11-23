@@ -11,6 +11,7 @@ sleeps until the limit resets and the others keep going; a slot without a key in
 """
 
 import asyncio
+import collections
 import json
 import logging
 import os
@@ -202,7 +203,9 @@ async def apply(channel, v: db.Vacancy, answer: dict, slot: str):
         await mq.publish(channel, v.id, mq.VERDICT_PRIORITY[verdict])
 
 
-async def worker(s: Slot, inbox: asyncio.Queue, http: httpx.AsyncClient, channel, tries: dict[int, int]):
+async def worker(s: Slot, inbox: asyncio.Queue, http: httpx.AsyncClient, channel, tries: dict[int, int],
+                 redo: bool = False):
+    """redo: judge again rows that already have a verdict (recheck by a stronger model)."""
     while True:
         await asyncio.sleep(max(0.0, s.until - time.time()))
         if s.rpd and used_today(s.name) >= s.rpd:
@@ -215,7 +218,7 @@ async def worker(s: Slot, inbox: asyncio.Queue, http: httpx.AsyncClient, channel
         todo = []
         for m in msgs:
             v = db.get(int(m.body))
-            if v is None or v.llm_verdict or v.status not in ("pending", "skipped", "queued"):
+            if v is None or (v.llm_verdict and not redo) or v.status not in ("pending", "skipped", "queued"):
                 await m.ack()  # judged already (backfill sent it twice) or you answered it
             else:
                 todo.append((v, m))
@@ -242,12 +245,57 @@ async def worker(s: Slot, inbox: asyncio.Queue, http: httpx.AsyncClient, channel
                 continue
             tries[v.id] = tries.get(v.id, 0) + 1
             if tries[v.id] >= MAX_TRIES:
-                await apply(channel, v, {"verdict": "maybe", "why": "модели не смогли оценить, посмотри сам"}, s.name)
+                if not redo:  # on a recheck the first verdict stays
+                    await apply(channel, v, {"verdict": "maybe", "why": "модели не смогли оценить, посмотри сам"},
+                                s.name)
                 await m.ack()
             else:
                 inbox.put_nowait(m)
         log.info("%s: %d/%d judged", s.name, len(res), len(todo))
         s.until = started + 60 / s.rpm
+
+
+class _Row:
+    """A DB row id posing as a queue message, for worker() outside RabbitMQ."""
+
+    def __init__(self, vid: int, done: set):
+        self.body, self.vid, self.done = str(vid).encode(), vid, done
+
+    async def ack(self):
+        self.done.add(self.vid)
+
+
+def _base(name: str) -> str:
+    return re.sub(r"-\d+$", "", name)  # gemini-flash-lite-2 -> gemini-flash-lite
+
+
+async def recheck(days: int):
+    """Judge recent "fit" rows again with the strong slots (llm.strong): the weak ones let junk through."""
+    cfg = config.load()
+    strong = set(cfg["llm"].get("strong", []))
+    active = [s for s in slots(cfg) if _base(s.name) in strong]
+    if not active:
+        sys.exit(f"нет ключей ни для одного слота из llm.strong: {sorted(strong)}")
+    with db.conn() as c:
+        rows = c.execute(
+            "SELECT id, llm FROM vacancies WHERE status='queued' AND llm_verdict='fit'"
+            " AND found_at > datetime('now', ?) ORDER BY id DESC", (f"-{days} days",)).fetchall()
+    ids = [vid for vid, a in rows if _base(json.loads(a or "{}").get("model", "")) not in strong]
+    before = {vid: "fit" for vid in ids}
+    log.info("recheck %d fit rows from the last %d days with %s", len(ids), days, [s.name for s in active])
+    done: set[int] = set()
+    inbox: asyncio.Queue = asyncio.Queue()
+    for vid in ids:
+        inbox.put_nowait(_Row(vid, done))
+    async with httpx.AsyncClient(timeout=180) as http:
+        tasks = [asyncio.create_task(worker(s, inbox, http, None, {}, redo=True)) for s in active]
+        while len(done) < len(ids):
+            await asyncio.sleep(30)
+            log.info("recheck: %d/%d", len(done), len(ids))
+        for t in tasks:
+            t.cancel()
+    after = collections.Counter(db.get(vid).llm_verdict for vid in before)
+    print(f"перепроверено {len(ids)}: осталось fit {after['fit']}, стало maybe {after['maybe']}, стало no {after['no']}")
 
 
 async def run():
@@ -360,6 +408,8 @@ if __name__ == "__main__":
     elif cmd == "calibrate":
         db.init()
         asyncio.run(calibrate(sys.argv[2] if len(sys.argv) > 2 else None))
+    elif cmd == "recheck":
+        asyncio.run(recheck(int(sys.argv[2]) if len(sys.argv) > 2 else 14))
     elif cmd == "backfill":
         asyncio.run(backfill())
     else:

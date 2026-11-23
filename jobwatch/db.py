@@ -36,6 +36,7 @@ class Vacancy:
     status: str = ""
     llm_verdict: str = ""  # fit | maybe | no, empty until the LLM judged it
     llm: str = ""  # the LLM answer as JSON: summary, why, missing, cv, model
+    found_at: str = ""  # UTC "YYYY-MM-DD HH:MM:SS", set by SQLite
 
 
 # ponytail: sync sqlite3 called from async code; calls are ~1ms, aiosqlite if that ever hurts

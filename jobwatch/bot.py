@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 
 import aio_pika
 from aiogram import Bot, Dispatcher, F
@@ -65,10 +66,20 @@ def lines(vs: list[db.Vacancy]) -> str:
     ) or "пусто"
 
 
+def too_old() -> str:
+    days = config.load().get("bot_max_age_days", 0)
+    if not days:
+        return ""
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+
+
 async def on_delivery(msg: aio_pika.abc.AbstractIncomingMessage):
     vid = int(msg.body)
     v = db.get(vid)
     if v is None or v.status != "queued":  # already decided (e.g. re-delivery after restart)
+        await msg.ack()
+        return
+    if v.found_at < too_old():  # stays "queued" in the DB, just not shown
         await msg.ack()
         return
     pending[vid] = msg

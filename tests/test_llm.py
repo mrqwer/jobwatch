@@ -121,3 +121,35 @@ def test_limited_slot_hands_work_to_another(tmp_path, monkeypatch):
     assert msg.acked
     assert a.until >= llm.next_midnight_utc() - 5  # daily quota -> asleep till midnight UTC
     assert db.get(vid).status == "queued" and published == [(vid, 40)]
+
+
+def test_redo_rejudges_a_fit_row(tmp_path, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "t.db"))
+    (tmp_path / "profile.md").write_text("python dev")
+    monkeypatch.setenv("CONFIG_PATH", str(tmp_path / "config.yaml"))
+    db.init()
+    vid = db.add(db.Vacancy("hh", "1", "DevOps", "u", company="A"), 1, "pending")
+    db.set_llm(vid, "fit", json.dumps({"verdict": "fit", "model": "weak"}), "queued")
+
+    def handler(req):
+        answer = {"results": [{"id": vid, "verdict": "no", "why": "DevOps без разработки"}]}
+        return httpx.Response(200, json={"choices": [{"message": {"content": json.dumps(answer)}}]})
+
+    async def main():
+        done, inbox = set(), asyncio.Queue()
+        inbox.put_nowait(llm._Row(vid, done))
+        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        t = asyncio.create_task(llm.worker(llm.Slot("s", "https://ok/v1", "m", "k", rpm=600), inbox, http, None, {}, redo=True))
+        for _ in range(40):
+            await asyncio.sleep(0.05)
+            if done:
+                break
+        t.cancel()
+        return done
+
+    assert asyncio.run(main()) == {vid}
+    v = db.get(vid)
+    assert (v.llm_verdict, v.status, json.loads(v.llm)["model"]) == ("no", "skipped", "s")
+    assert v.found_at  # SQLite filled it; the bot's age filter reads it

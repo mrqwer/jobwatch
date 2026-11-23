@@ -87,6 +87,9 @@ keywords:
   internship: -3
   junior: -3
 
+# бот показывает только вакансии моложе N дней (старые, скорее всего, закрыты; в базе они остаются)
+bot_max_age_days: 14
+
 remoteok: true
 
 # открытые API / RSS (sources/boards.py); убери строку, чтобы выключить площадку
@@ -152,6 +155,8 @@ llm:
                   бухгалтер, "менеджер по продажам", "sales manager", "account executive", копирайтер, оператор]
   # ...но если в заголовке есть целевое слово — всё равно к модели ("Fullstack (PHP/Python)", "Go/PHP разработчик")
   keep_titles: [python, golang, go, llm, ai, ии, ml, "machine learning", "data", django, fastapi, rag, nlp]
+  # сильные модели для перепроверки «подходит»: python -m jobwatch.llm recheck 14
+  strong: [cerebras-gpt-oss-120b, groq-gpt-oss-120b, cloudflare]
   slots:
     # Google AI Studio: лимиты на каждую модель отдельно
     - {name: gemini-flash-lite, url: "https://generativelanguage.googleapis.com/v1beta/openai", key: GEMINI_API_KEY,
