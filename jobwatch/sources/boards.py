@@ -98,8 +98,15 @@ async def himalayas(http, cfg):
 
 async def jobicy(http, cfg):
     out = []
-    for q in cfg.get("board_queries", []):
-        for j in (await _json(http, "https://jobicy.com/api/v2/remote-jobs", count=50, tag=q)).get("jobs", []):
+    for i, q in enumerate(cfg.get("board_queries", [])):
+        if i:
+            await asyncio.sleep(10)  # 5 queries back to back drew 429s
+        try:
+            jobs = (await _json(http, "https://jobicy.com/api/v2/remote-jobs", count=50, tag=q)).get("jobs", [])
+        except httpx.HTTPStatusError as e:  # one refused query must not drop the others
+            log.warning("jobicy %r: %s", q, e.response.status_code)
+            continue
+        for j in jobs:
             out.append(Vacancy(
                 "jobicy", str(j["id"]), j["jobTitle"], j["url"], j.get("companyName", ""),
                 _salary(j.get("salaryMin"), j.get("salaryMax"), j.get("salaryCurrency")),
