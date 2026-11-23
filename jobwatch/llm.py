@@ -275,12 +275,15 @@ async def recheck(days: int):
     strong = set(cfg["llm"].get("strong", []))
     active = [s for s in slots(cfg) if _base(s.name) in strong]
     if not active:
-        sys.exit(f"нет ключей ни для одного слота из llm.strong: {sorted(strong)}")
+        log.warning("recheck: no key for any slot in llm.strong %s", sorted(strong))
+        return
     with db.conn() as c:
         rows = c.execute(
             "SELECT id, llm FROM vacancies WHERE status='queued' AND llm_verdict='fit'"
             " AND found_at > datetime('now', ?) ORDER BY id DESC", (f"-{days} days",)).fetchall()
     ids = [vid for vid, a in rows if _base(json.loads(a or "{}").get("model", "")) not in strong]
+    if not ids:
+        return
     before = {vid: "fit" for vid in ids}
     log.info("recheck %d fit rows from the last %d days with %s", len(ids), days, [s.name for s in active])
     done: set[int] = set()
@@ -295,7 +298,7 @@ async def recheck(days: int):
         for t in tasks:
             t.cancel()
     after = collections.Counter(db.get(vid).llm_verdict for vid in before)
-    print(f"перепроверено {len(ids)}: осталось fit {after['fit']}, стало maybe {after['maybe']}, стало no {after['no']}")
+    log.info("recheck done: %d rows, fit %d, maybe %d, no %d", len(ids), after["fit"], after["maybe"], after["no"])
 
 
 async def run():
@@ -316,7 +319,18 @@ async def run():
     log.info("slots: %s", ", ".join(f"{s.name} ({s.model})" for s in active))
     tries: dict[int, int] = {}
     async with httpx.AsyncClient(timeout=180) as http:
-        await asyncio.gather(*(worker(s, inbox, http, channel, tries) for s in active))
+        await asyncio.gather(*(worker(s, inbox, http, channel, tries) for s in active), recheck_daily())
+
+
+async def recheck_daily():
+    """New "fit" from the weak slots keeps coming: the strong ones look at it once a day."""
+    # ponytail: fixed 24h cadence; a fit judged weakly waits up to a day in the bot queue with the weak verdict
+    while True:
+        try:
+            await recheck(14)
+        except Exception:  # a bad night must not take the scorer down
+            log.exception("recheck failed")
+        await asyncio.sleep(24 * 3600)
 
 
 async def models():
